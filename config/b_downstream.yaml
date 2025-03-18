@@ -1,0 +1,54 @@
+dataset:
+  num_edge_points: 512
+  num_points_reg: 256
+  num_mv_vecs: 5
+  use_data_augmentation: true
+  multi_rel: true
+  num_max_edge: -1
+  all_edges: true
+  padding: 0.2
+  seed: 2025
+  relpts: "obj_only"
+
+train:
+  obj_ckp_path: ./model_checkpoints/obj_encoder_mv_supcon.pth
+  rel_ckp_path: ./model_checkpoints/rel_encoder_supcon.pth
+  name: rel_encoder
+  epoch: 1000
+  log_interval: 5
+  evaluation_interval: 5
+  save_interval: 10
+  batch_size: 8
+  workers: 8
+  wandb_path: ./wandb
+  wandb_project: bfeat_rel_ft
+  none_ratio: 0.1
+  drop_out: 0.5
+  verbose: true
+  meter: average
+  scheduler: 'cosine'
+  alpha: 0.05
+  queue_k: 8192
+  queue_m: 0.999
+  queue_t: 1.0
+  lambda_obj: 0.1
+  lambda_rel: 1.0
+
+model:
+  num_graph_update: 2 # 1
+  layers: 50
+  dim_edge_feats: 512
+  dim_obj_feats: 512
+  dim_geo_feats: 11 
+  dim_attn: 512
+  num_heads: 8
+  use_rgb: true
+  use_normal: true
+  flow: target_to_source
+  num_layers: 6
+  relation_type: "resnet"
+  edge_attention: false
+
+optimizer:
+  learning_rate: 0.0001
+  weight_decay: 0.0001
