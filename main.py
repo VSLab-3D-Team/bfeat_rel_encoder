@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(description="Training BFeat Architecture")
 parser.add_argument("--mode", type=str, default="train", choices=["train", "experiment"], help="Select mode for BFeat (train/evaluation)")
 parser.add_argument("--runners", 
     type=str, default="pretrain", 
-    choices=["pretrain", "finetune"],
+    choices=["pretrain", "pretrain_tsc", "finetune"],
     help="Select running model"
 )
 parser.add_argument("--config", type=str, default="baseline.yaml", help="Runtime configuration file path")
@@ -23,6 +23,8 @@ def train(config):
     device = "cuda"
     if args.runners == "pretrain":
         trainer = BFeatRelSCLTMTrainer(config, device, multi_gpu=args.multigpu)
+    elif args.runners == "pretrain_tsc":
+        trainer = BFeatRelTSCTrainer(config, device, multi_gpu=args.multigpu)
     elif args.runners == "finetune":
         trainer = BFeatFinetuningTrainer(config, device, multi_gpu=args.multigpu)
     else:

@@ -16,11 +16,13 @@ class BFeatFinetuningTrainer(BaseTrainer):
         # Model Definitions
         self.m_config = config.model
         
+        self.build_text_embvec()
         self.model = BFeatDownstreamNet(
             self.config, 
             self.num_obj_class, 
             self.num_rel_class, 
-            device
+            t_emb_vec=self.text_gt_matrix, none_emb=self.none_emb, 
+            device=device
         ).to(device)
         
         # Optimizer & Scheduler

@@ -8,6 +8,9 @@ import trimesh
 import multiprocessing
 from glob import glob
 import cv2
+import io
+import concurrent.futures
+from tqdm import tqdm
 
 lock = multiprocessing.Lock()
 
@@ -122,7 +125,7 @@ def load_mesh(path,label_file,use_rgb,use_normal):
     result=dict()
     if label_file == 'labels.instances.align.annotated.v2.ply' or label_file == 'labels.instances.align.annotated.ply':
         
-        plydata = trimesh.load(os.path.join(path,label_file), process=False)
+        plydata = trimesh.load(os.path.join(path,label_file), file_type="ply", process=False, skip_materials=True)
         points = np.array(plydata.vertices)
         instances = read_labels(plydata).flatten()
         
@@ -305,7 +308,11 @@ def read_scan_data(config, split, device):
         "relationship_json": relationship_json
     }
     scan_list = [ (s, instance_data) for s in scans ]
-    scan_data = process_map(__read_3dssg_scans, scan_list, max_workers=12, chunksize=15, mininterval=0.1)
+    scan_data = process_map(
+        __read_3dssg_scans, scan_list, 
+        max_workers=min(32, os.cpu_count() * 2 + 4), 
+        chunksize=15, mininterval=0.1
+    )
     print('num of data:',len(scans))
     assert(len(scans) > 0)
     
@@ -371,7 +378,7 @@ def read_scan_data_with_rgb(config, split, device):
         "className": classNames
     }
     scan_list = [ (s, instance_data) for s in scans ]
-    scan_data = process_map(__read_3dssg_scans_mv, scan_list, max_workers=12, chunksize=15, mininterval=0.1)
+    scan_data = process_map(__read_3dssg_scans_mv, scan_list, max_workers=8, chunksize=15, mininterval=0.1)
     print('num of data:',len(scans))
     assert(len(scans) > 0)
     

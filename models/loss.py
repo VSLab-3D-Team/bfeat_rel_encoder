@@ -56,6 +56,7 @@ class PaCoLoss(nn.Module):
         )
         # add supervised logits
         anchor_dot_contrast = torch.cat(( sup_logits / self.supt, anchor_dot_contrast ), dim=1) # B X (C + 1 + 2B + K)
+        anchor_dot_contrast[:, :self.num_classes] = self.weight * anchor_dot_contrast[:, :self.num_classes]
 
         # for numerical stability
         logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
