@@ -5,52 +5,50 @@ dataset:
   use_data_augmentation: true
   multi_rel: true
   num_max_edge: -1
-  all_edges: true
+  all_edges: false
   padding: 0.2
   seed: 2025
   relpts: "obj_only"
-  is_aux: false
+  is_aux: true
 
 train:
   ckp_path: ./model_checkpoints/pc_encoder_mv_vl.pth
-  target_dir: ./model_checkpoints
   name: rel_encoder
   epoch: 400
   log_interval: 5
   evaluation_interval: 5
   save_interval: 10
-  batch_size: 256
+  batch_size: 64
   workers: 8
   wandb_path: ./wandb
-  wandb_project: bfeat_tsc_encoder
+  wandb_project: bfeat_rel_geopp
   none_ratio: 0.1
   drop_out: 0.5
   verbose: true
   meter: average
   scheduler: 'cosine'
-  alpha: 0.01
+  alpha: 0.01 # Experiments for later
+  supt: 1.0
   queue_k: 8192
   queue_m: 0.999
-  moco_t: 0.07
-  num_positive: 6
-  tr: 1
-  tw: 0.2
+  moco_t: 0.05
 
 model:
   num_graph_update: 2 # 1
   layers: 50
-  dim_edge_feats: 512
+  dim_edge_feats: 256
   dim_obj_feats: 512
   dim_geo_feats: 11 
   dim_attn: 512
   num_heads: 8
-  use_rgb: true
-  use_normal: true
+  use_rgb: false
+  use_normal: false
   flow: target_to_source
   num_layers: 6
   relation_type: "resnet"
   edge_attention: false
+  encoder: "pointnetpp"
 
 optimizer:
-  learning_rate: 0.02
+  learning_rate: 0.001
   weight_decay: 0.0005

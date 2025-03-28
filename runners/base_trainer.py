@@ -18,7 +18,7 @@ from tqdm import tqdm
 from utils.visualization import *
 
 class BaseTrainer(ABC):
-    def __init__(self, config, device, multi_gpu=False, is_finetune=False):
+    def __init__(self, config, device, multi_gpu=False, is_finetune=False, is_geo_only=False):
         super().__init__()
         self.config = config
         self.device = device
@@ -26,8 +26,8 @@ class BaseTrainer(ABC):
         self.d_config = config.dataset
         self.m_config = config.model
         self.opt_config = config.optimizer
-        self.t_dataset = build_dataset(self.d_config, split="train_scans", device=device, ft=is_finetune)
-        self.v_dataset = build_dataset(self.d_config, split="validation_scans", device=device, ft=is_finetune)
+        self.t_dataset = build_dataset(self.d_config, split="train_scans", device=device, ft=is_finetune, is_geo_only=is_geo_only)
+        self.v_dataset = build_dataset(self.d_config, split="validation_scans", device=device, ft=is_finetune, is_geo_only=is_geo_only)
         t_sampler = DistributedSampler(self.t_dataset) if multi_gpu else None
         is_shuffle = False if multi_gpu else True
         collate_fn = collate_fn_bfeat if is_finetune else None
@@ -182,8 +182,10 @@ class BaseTrainer(ABC):
         """
         pass
     
-    def write_wandb_log(self):
+    def write_wandb_log(self, write_val=False):
         for k in list(self.meters.keys()):
+            if k.startswith("Validation") and not write_val:
+                continue 
             if self.t_config.meter == "average":
                 self.wandb_log[k] = self.meters[k].avg
             elif self.t_config.meter == "max":
@@ -259,10 +261,12 @@ class BaseTrainer(ABC):
 
         return fig
     
-    def draw_tsne_viz(self, features, gt_labels, centers):
-        fig = visualize_tsne_multilabel_rgb(features, gt_labels, centers)
-        self.wandb_log["dim_reduction"]=[wandb.Image(fig)]
-        return
+    def draw_tsne_viz(self, features, gt_labels, centers: list):
+        if len(centers) > 0:
+            fig = visualize_tsne_multilabel_rgb(features, gt_labels, centers)
+        else:
+            fig = visualize_tsne_multilabel_rgb_wo_center(features, gt_labels)
+        self.wandb_log["dim_reduction"]=[ wandb.Image(fig) ]
     
     def compute_predicate_acc_per_class(self, cls_matrix_list, topk_pred_list):
         cls_dict = {}

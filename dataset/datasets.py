@@ -32,7 +32,8 @@ class SSGFeatEncoder3D(Dataset):
             self.dim_pts += 3
         if self.use_normal:
             self.dim_pts += 3
-            
+        self.is_aux = self.config.is_aux
+                
         self.object_num_per_class = o_obj_cls
         self.relation_num_per_class = o_rel_cls
         
@@ -53,8 +54,9 @@ class SSGFeatEncoder3D(Dataset):
         self.data_list = []
         self.rel_pts_dataset = []
         self.rel_gt_label_dataset = []
+        self.rel_descriptor = []
         for scan_data in tqdm(self.scan_data, total=len(self.scan_data)):
-            _, rel_pts, _, gt_rels, _, _ = \
+            _, rel_pts, _, gt_rels, _, _, rel_desc = \
                 self.__get_data(
                     scan_data["points"], scan_data["mask"], self.config.num_points_reg, 
                     self.relationNames, scan_data["map_instid_name"], scan_data["rel_json"], 
@@ -63,7 +65,7 @@ class SSGFeatEncoder3D(Dataset):
             while(len(rel_pts) == 0 or gt_rels.sum()==0) and self.for_train:
                 index = np.random.randint(len(self.scan_data))
                 scan_data = self.scan_data[index]
-                _, rel_pts, _, gt_rels, _, _ = \
+                _, rel_pts, _, gt_rels, _, _, rel_desc = \
                     self.__get_data(
                         scan_data["points"], scan_data["mask"], self.config.num_points_reg, 
                         self.relationNames, scan_data["map_instid_name"], scan_data["rel_json"], 
@@ -72,8 +74,10 @@ class SSGFeatEncoder3D(Dataset):
             # Concat Relation Point Cloud data for unified batch 
             self.rel_pts_dataset.append(rel_pts)
             self.rel_gt_label_dataset.append(gt_rels)
+            self.rel_descriptor.append(rel_desc)
         self.rel_pts_dataset = torch.cat(self.rel_pts_dataset, dim=0)
         self.rel_gt_label_dataset = torch.cat(self.rel_gt_label_dataset, dim=0)
+        self.rel_descriptor = torch.cat(self.rel_descriptor, dim=0)
         
     def __len__(self):
         return self.rel_pts_dataset.shape[0]
@@ -90,9 +94,6 @@ class SSGFeatEncoder3D(Dataset):
     def zero_mean(self, point):
         mean = torch.mean(point, dim=0)
         point -= mean.unsqueeze(0)
-        ''' without norm to 1  '''
-        # furthest_distance = point.pow(2).sum(1).sqrt().max() # find maximum distance for each n -> [n]
-        # point /= furthest_distance
         return point  
 
     '''
@@ -156,6 +157,7 @@ class SSGFeatEncoder3D(Dataset):
             label_node.append(self.classNames.index(instance_name))
             # get node point
             obj_pts, obj_bbox, desc = self.__crop_obj_pts(scene_points, obj_masks, instance_id, num_pts_normalized, padding=padding)
+            obj_pts[:,:3] = self.zero_mean(obj_pts[:,:3])
             instances_box[instance_id] = obj_bbox
             descriptor[i] = desc
             obj_points[i] = obj_pts
@@ -186,6 +188,7 @@ class SSGFeatEncoder3D(Dataset):
             gt_rels = torch.zeros(len(edge_indices), dtype = torch.long)     
         
         rel_points = list()
+        rel_descriptor = list()
         for e in range(len(edge_indices)):
             edge = edge_indices[e]
             index1 = edge[0]
@@ -194,11 +197,15 @@ class SSGFeatEncoder3D(Dataset):
             instance2 = nodes[edge[1]]
 
             if self.config.relpts == "obj_only":
-                obj_pts_1, _, _ = self.__crop_obj_pts(scene_points, obj_masks, instance1, num_pts_normalized, padding) # dim: N_pts X self.dim_pts
-                obj_pts_2, _, _ = self.__crop_obj_pts(scene_points, obj_masks, instance2, num_pts_normalized, padding) # dim: N_pts X self.dim_pts
+                obj_pts_1, _, desc_1 = self.__crop_obj_pts(scene_points, obj_masks, instance1, num_pts_normalized, padding) # dim: N_pts X self.dim_pts
+                obj_pts_2, _, desc_2 = self.__crop_obj_pts(scene_points, obj_masks, instance2, num_pts_normalized, padding) # dim: N_pts X self.dim_pts
                 
-                edge_pts = np.concatenate([obj_pts_1, obj_pts_2], axis=0) # dim: (2 * N_pts) X self.dim_pts
-                rel_points.append(torch.from_numpy(edge_pts.astype(np.float32))) # 
+                edge_pts = torch.from_numpy(
+                    np.concatenate([obj_pts_1, obj_pts_2], axis=0).astype(np.float32)
+                ) # dim: (2 * N_pts) X self.dim_pts
+                edge_pts[:, :3] = self.zero_mean(edge_pts[:, :3])
+                rel_points.append(edge_pts)
+                rel_descriptor.append(desc_1 - desc_2)
             else:
                 mask1 = (obj_masks == instance1).astype(np.int32) * 1
                 mask2 = (obj_masks == instance2).astype(np.int32) * 2
@@ -227,14 +234,16 @@ class SSGFeatEncoder3D(Dataset):
 
         if len(rel_points) > 0:
             rel_points = torch.stack(rel_points, 0)
+            rel_descriptor = torch.stack(rel_descriptor, 0)
         else:
             rel_points = torch.tensor([])
+            rel_descriptor = torch.tensor([])
         
         label_node = torch.from_numpy(np.array(label_node, dtype=np.int64))
         edge_indices = torch.tensor(edge_indices,dtype=torch.long)
         # obj_2d_feats = torch.from_numpy(obj_2d_feats.astype(np.float32))    
         
-        return obj_points, rel_points, descriptor, gt_rels, label_node, edge_indices 
+        return obj_points, rel_points, descriptor, gt_rels, label_node, edge_indices, rel_descriptor
     
     ## Things to return
     ### Object features in the graph
@@ -243,7 +252,10 @@ class SSGFeatEncoder3D(Dataset):
     ### Ground Truth predicate label
     ### Edge Indices
     def __getitem__(self, index):
-        return self.rel_pts_dataset[index, ...], self.rel_gt_label_dataset[index, ...]
+        if self.is_aux:
+            return self.rel_pts_dataset[index, ...], self.rel_gt_label_dataset[index, ...], self.rel_descriptor[index, ...]
+        else: 
+            return self.rel_pts_dataset[index, ...], self.rel_gt_label_dataset[index, ...]
 
 ## Dataloading strategy
 ### Load all data of each scan in constructor
@@ -295,9 +307,6 @@ class SSGLWBFeat3D(Dataset):
     def zero_mean(self, point):
         mean = torch.mean(point, dim=0)
         point -= mean.unsqueeze(0)
-        ''' without norm to 1  '''
-        # furthest_distance = point.pow(2).sum(1).sqrt().max() # find maximum distance for each n -> [n]
-        # point /= furthest_distance
         return point  
 
     '''
@@ -312,7 +321,6 @@ class SSGLWBFeat3D(Dataset):
         obj_pointset = obj_pointset[choice, :]
         descriptor = gen_descriptor(torch.from_numpy(obj_pointset)[:,:3])
         obj_pointset = torch.from_numpy(obj_pointset.astype(np.float32))
-        # obj_pointset[:,:3] = self.zero_mean(obj_pointset[:,:3])
         return obj_pointset, obj_bbox, descriptor
     
     '''
@@ -361,6 +369,7 @@ class SSGLWBFeat3D(Dataset):
             label_node.append(self.classNames.index(instance_name))
             # get node point
             obj_pts, obj_bbox, desc = self.__crop_obj_pts(scene_points, obj_masks, instance_id, num_pts_normalized, padding=padding)
+            obj_pts[:,:3] = self.zero_mean(obj_pts[:,:3])
             instances_box[instance_id] = obj_bbox
             descriptor[i] = desc
             obj_points[i] = obj_pts
@@ -402,8 +411,11 @@ class SSGLWBFeat3D(Dataset):
                 obj_pts_1, _, _ = self.__crop_obj_pts(scene_points, obj_masks, instance1, num_pts_normalized, padding) # dim: N_pts X self.dim_pts
                 obj_pts_2, _, _ = self.__crop_obj_pts(scene_points, obj_masks, instance2, num_pts_normalized, padding) # dim: N_pts X self.dim_pts
                 
-                edge_pts = np.concatenate([obj_pts_1, obj_pts_2], axis=0) # dim: (2 * N_pts) X self.dim_pts
-                rel_points.append(torch.from_numpy(edge_pts.astype(np.float32))) # 
+                edge_pts = torch.from_numpy(
+                    np.concatenate([obj_pts_1, obj_pts_2], axis=0).astype(np.float32)
+                ) # dim: (2 * N_pts) X self.dim_pts
+                edge_pts[:, :3] = self.zero_mean(edge_pts[:, :3])
+                rel_points.append(edge_pts)
             else:
                 mask1 = (obj_masks == instance1).astype(np.int32) * 1
                 mask2 = (obj_masks == instance2).astype(np.int32) * 2

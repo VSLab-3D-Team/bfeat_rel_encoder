@@ -12,34 +12,38 @@ dataset:
   is_aux: false
 
 train:
-  ckp_path: ./model_checkpoints/pc_encoder_mv_vl.pth
+  obj_ckp_path: ./model_checkpoints/obj_encoder_mv_supcon.pth
+  rel_ckp_path: ./model_checkpoints/rel_encoder_geo.pth
   target_dir: ./model_checkpoints
   name: rel_encoder
-  epoch: 400
+  epoch: 100
   log_interval: 5
   evaluation_interval: 5
   save_interval: 10
-  batch_size: 256
+  batch_size: 8
   workers: 8
   wandb_path: ./wandb
-  wandb_project: bfeat_tsc_encoder
+  wandb_project: bfeat_rel_geo_ft
   none_ratio: 0.1
   drop_out: 0.5
   verbose: true
   meter: average
   scheduler: 'cosine'
-  alpha: 0.01
+  alpha: 0.05
   queue_k: 8192
   queue_m: 0.999
+  queue_t: 1.0
   moco_t: 0.07
-  num_positive: 6
+  lambda_obj: 0.1
+  lambda_rel: 1.0
   tr: 1
   tw: 0.2
+  num_positive: 6
 
 model:
   num_graph_update: 2 # 1
   layers: 50
-  dim_edge_feats: 512
+  dim_edge_feats: 256
   dim_obj_feats: 512
   dim_geo_feats: 11 
   dim_attn: 512
@@ -52,5 +56,5 @@ model:
   edge_attention: false
 
 optimizer:
-  learning_rate: 0.02
-  weight_decay: 0.0005
+  learning_rate: 0.0001
+  weight_decay: 0.0001

@@ -10,12 +10,12 @@ def flatten(t):
     return t.reshape(t.shape[0], -1)
 
 
-class MoCoRelEncoderTSC(BaseNetwork):
+class MoCoRelEncoderTSCAux(BaseNetwork):
     def __init__(
         self, config, device, n_rel_cls, out_dim, 
         multi_gpu=False
     ):
-        super(MoCoRelEncoderTSC, self).__init__()
+        super(MoCoRelEncoderTSCAux, self).__init__()
         self.config = config
         self.t_config = config.train
         self.m_config = config.model
@@ -61,6 +61,7 @@ class MoCoRelEncoderTSC(BaseNetwork):
         self.linear_G = self.__build_mlp(out_dim, self.edge_dim)
         self.linear_F = self.__build_mlp(out_dim, self.edge_dim)
         self.key_linear_G = self.__build_mlp(out_dim, self.edge_dim)
+        self.linear_aux = self.__build_mlp(out_dim, 11)
         
         for param_q, param_k in zip(self.query_encoder.parameters(), self.key_encoder.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
@@ -288,14 +289,16 @@ class MoCoRelEncoderTSC(BaseNetwork):
         
         self._dequeue_and_enqueue(k_G, labels)
         
-        return logits, labels, q, loss, loss_class, loss_target
+        aux_desc = self.linear_aux(q)
+        return logits, labels, q, loss, loss_class, loss_target, aux_desc
     
     @torch.no_grad()
     def _inference(self, pcd):
         q, _, _ = self.query_encoder(pcd)
         # q_G = self.linear_G(q)
         q = F.normalize(q, dim=1)    
-        return q
+        aux_desc = self.linear_aux(q)
+        return q, aux_desc
     
     def forward(self, pcd_q, pcd_k = None, labels = None):
         if self.training:

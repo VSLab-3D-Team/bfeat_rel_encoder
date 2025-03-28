@@ -237,7 +237,6 @@ def build_meters(type: str) -> Dict[str, AbstractMeter]:
         meters["Train/Pred_R1"] = AverageMeter(name="Train/Pred_R1")
         meters["Train/Pred_R3"] = AverageMeter(name="Train/Pred_R3")
         meters["Train/Pred_R5"] = AverageMeter(name="Train/Pred_R5")
-        meters['Validation/Total_Loss'] = AverageMeter(name='Validation/Total_Loss')
         # Validation evaluation metrics
         # meters["Validation/Acc@1/obj_cls"] = AverageMeter(name="Validation/Acc@1/obj_cls")
         # meters["Validation/Acc@5/obj_cls"] = AverageMeter(name="Validation/Acc@5/obj_cls")

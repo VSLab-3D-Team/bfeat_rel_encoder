@@ -8,20 +8,22 @@ dataset:
   all_edges: true
   padding: 0.2
   seed: 2025
-  relpts: "rel_pts"
+  relpts: "obj_only"
+  is_aux: false
 
 train:
   obj_ckp_path: ./model_checkpoints/obj_encoder_mv_supcon.pth
-  rel_ckp_path: ./model_checkpoints/rel_encoder_supcon.pth
+  rel_ckp_path: ./model_checkpoints/rel_encoder_tsc_aux.pth
+  target_dir: ./model_checkpoints
   name: rel_encoder
   epoch: 100
   log_interval: 5
   evaluation_interval: 5
   save_interval: 10
-  batch_size: 1
+  batch_size: 8
   workers: 8
   wandb_path: ./wandb
-  wandb_project: bfeat_rel_ft
+  wandb_project: bfeat_rel_tsc_ft
   none_ratio: 0.1
   drop_out: 0.5
   verbose: true
@@ -31,8 +33,12 @@ train:
   queue_k: 8192
   queue_m: 0.999
   queue_t: 1.0
+  moco_t: 0.07
   lambda_obj: 0.1
   lambda_rel: 1.0
+  tr: 1
+  tw: 0.2
+  num_positive: 6
 
 model:
   num_graph_update: 2 # 1

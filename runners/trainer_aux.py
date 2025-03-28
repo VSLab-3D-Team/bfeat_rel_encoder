@@ -2,7 +2,7 @@ from utils.eval_utils import *
 from utils.logger import Progbar
 from utils.op_utils import rotation_matrix
 from runners.base_trainer import BaseTrainer
-from models.model.encoder_tmodal import MoCoRelEncoderTextModal
+from models.model.encoder_tmodal_aux import MoCoRelEncoderTextModalAux
 from models.loss import PaCoLoss
 import numpy as np
 import torch
@@ -16,17 +16,17 @@ import torch.distributed as dist
 
 
 ## TODO: Relationship Feature Extractor Contrastive learning only
-class BFeatRelSCLTMTrainer(BaseTrainer):
+class BFeatRelSCLTMAuxTrainer(BaseTrainer):
     def __init__(self, config, device, multi_gpu=False):
         super().__init__(config, device, multi_gpu)
         
         self.m_config = config.model
         # Model Definitions
         self.build_text_embvec()
-        self.model = MoCoRelEncoderTextModal(
+        self.model = MoCoRelEncoderTextModalAux(
             self.config, device, self.num_rel_class, 
             t_emb_vec=self.text_gt_matrix, none_emb=self.none_emb, 
-            out_dim=1024
+            out_dim=512
         )
         if multi_gpu:
             dist.init_process_group(backend="nccl", init_method="tcp://localhost:9996", world_size=1, rank=0)
@@ -57,11 +57,9 @@ class BFeatRelSCLTMTrainer(BaseTrainer):
             num_classes=self.num_rel_class, K=self.t_config.queue_k
         )
         self.criterion.cal_weight_for_classes(self.rel_freq_num)
+        self.aux_criterion = nn.SmoothL1Loss(beta=1.0)
         self.scaler = GradScaler()
         
-        self.add_meters([
-            'Validation/Total_Loss'
-        ])
         # Remove trace meters
         self.del_meters([
             "Train/Obj_Cls_Loss",
@@ -72,7 +70,13 @@ class BFeatRelSCLTMTrainer(BaseTrainer):
             "Train/Obj_R10",
             "Train/Pred_R1",
             "Train/Pred_R3",
-            "Train/Pred_R5"
+            "Train/Pred_R5",
+            "Validation/Total_Loss"
+        ])
+        self.add_meters([
+            "Train/Aux_Regress_Loss",
+            "Train/PaCo_Loss",
+            "Validation/Aux_Regress_Loss"
         ])
         
         # Resume training if ckp path is provided.
@@ -125,21 +129,28 @@ class BFeatRelSCLTMTrainer(BaseTrainer):
             for idx, (
                 rel_pts, 
                 gt_rel_label,
+                rel_descriptor,
             ) in enumerate(loader):
 
-                rel_pts, gt_rel_label = self.to_device(rel_pts, gt_rel_label)
+                rel_pts, gt_rel_label, rel_descriptor = self.to_device(rel_pts, gt_rel_label, rel_descriptor)
                 self.optimizer.zero_grad()
                 rel_pts_x, rel_pts_y = self.__pcd_augmentation(rel_pts, is_obj=False)
-                features, target, logits_q = self.model(rel_pts_x, rel_pts_y, gt_rel_label)
+                features, target, logits_q, aux_desc = self.model(rel_pts_x, rel_pts_y, gt_rel_label)
 
+                aux_loss = self.aux_criterion(aux_desc, rel_descriptor)
                 pc_loss = self.criterion(features, target, logits_q)
+                t_loss = 0.1 * pc_loss + aux_loss
                 self.scaler.scale(pc_loss).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 
-                self.meters['Train/Total_Loss'].update(pc_loss.detach().item())
+                self.meters['Train/PaCo_Loss'].update(pc_loss.detach().item())
+                self.meters['Train/Aux_Regress_Loss'].update(aux_loss.detach().item())
+                self.meters['Train/Total_Loss'].update(t_loss.detach().item())
                 t_log = [
-                    ("train/total_loss", pc_loss.detach().item()),
+                    ("train/total_loss", t_loss.detach().item()),
+                    ("train/paco_loss", pc_loss.detach().item()),
+                    ("train/aux_loss", aux_loss.detach().item()),
                     ("Misc/epo", int(e)),
                     ("Misc/it", int(idx)),
                     ("lr", self.lr_scheduler.get_last_lr()[0])
@@ -173,21 +184,24 @@ class BFeatRelSCLTMTrainer(BaseTrainer):
             for idx, (
                 rel_pts, 
                 gt_rel_label,
+                rel_descriptors,
             ) in enumerate(loader):
 
-                rel_pts, gt_rel_label = self.to_device(rel_pts, gt_rel_label)
+                rel_pts, gt_rel_label, rel_descriptors = self.to_device(rel_pts, gt_rel_label, rel_descriptors)
                 rel_pts = rel_pts.transpose(2, 1).contiguous()
                 rel_pts, gt_rel_label = self.to_device(rel_pts, gt_rel_label)
-                features, logits_q = self.model(rel_pts)
+                features, _, aux_desc = self.model(rel_pts)
                 
                 # Object Encoder Contrastive loss
-                pc_loss = self.criterion(features, gt_rel_label, logits_q, is_train=False)
+                aux_loss = self.aux_criterion(aux_desc, rel_descriptors)
+                # pc_loss = self.criterion(features, gt_rel_label, logits_q, is_train=False)
                 feature_data.append(features)
                 gt_rel_labels.append(gt_rel_label)
                 
-                self.meters['Validation/Total_Loss'].update(pc_loss.detach().item())
+                self.meters["Validation/Aux_Regress_Loss"].update(aux_loss.detach().item())
+                # self.meters['Validation/Total_Loss'].update(pc_loss.detach().item())
                 t_log = [
-                    ("val/total_loss", pc_loss.detach().item()),
+                    ("val/total_loss", aux_loss.detach().item()),
                 ]
                 progbar.add(1, values=t_log)
             
@@ -197,7 +211,7 @@ class BFeatRelSCLTMTrainer(BaseTrainer):
             center_none = self.model.none_centers.data.clone().detach()
             self.draw_tsne_viz(features_val, gt_val_labels, centers=[center_tm, center_none])
             
-            self.wandb_log["Validation/par_loss"] = self.meters['Validation/Total_Loss'].avg
-        return self.meters['Validation/Total_Loss'].avg
+            self.wandb_log["Validation/Aux_loss"] = self.meters['Validation/Aux_Regress_Loss'].avg
+        return self.meters['Validation/Aux_Regress_Loss'].avg
     
     

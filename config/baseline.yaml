@@ -9,6 +9,7 @@ dataset:
   padding: 0.2
   seed: 2025
   relpts: "obj_only"
+  is_aux: false
 
 train:
   ckp_path: ./model_checkpoints/pc_encoder_mv_vl.pth
@@ -26,8 +27,9 @@ train:
   verbose: true
   meter: average
   scheduler: 'cosine'
-  alpha: 0.01
-  queue_k: 16384
+  alpha: 0.01 # Experiments for later
+  supt: 1.0
+  queue_k: 8192
   queue_m: 0.999
   moco_t: 0.05
 

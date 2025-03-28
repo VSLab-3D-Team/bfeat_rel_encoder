@@ -90,7 +90,8 @@ class STNkd(nn.Module):
         x = x.view(-1, self.k, self.k)
         return x
 
-
+### PointNet이 너무 크다. Predicate의 Class 치고 너무 크다.
+### 조절하면서 edge dimension까지도 조절해봐야할 것 같다.
 class PointNetEncoder(nn.Module):
     def __init__(self, device, global_feat=True, feature_transform=False, channel=3, out_dim=512):
         super(PointNetEncoder, self).__init__()

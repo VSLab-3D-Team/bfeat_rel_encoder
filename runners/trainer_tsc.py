@@ -24,7 +24,7 @@ class BFeatRelTSCTrainer(BaseTrainer):
         # Model Definitions
         self.model = MoCoRelEncoderTSC(
             self.config, device, self.num_rel_class, 
-            out_dim=1024
+            out_dim=512
         )
         if multi_gpu:
             dist.init_process_group(backend="nccl", init_method="tcp://localhost:9996", world_size=1, rank=0)

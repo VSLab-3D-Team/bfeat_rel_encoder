@@ -2,3 +2,7 @@ from runners.trainer import BFeatRelSCLTrainer
 from runners.trainer_finetune import BFeatFinetuningTrainer
 from runners.trainer_tm import BFeatRelSCLTMTrainer
 from runners.trainer_tsc import BFeatRelTSCTrainer
+from runners.trainer_aux import BFeatRelSCLTMAuxTrainer
+from runners.trainer_tsc_aux import BFeatRelTSCAuxTrainer
+from runners.trainer_geo import BFeatRelGeoTrainer
+from runners.trainer_geo_pp import BFeatRelGeoPPTrainer

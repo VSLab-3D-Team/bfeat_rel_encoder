@@ -54,10 +54,11 @@ class PaCoLoss(nn.Module):
             torch.matmul(features[:batch_size], features.T), # B X (2B + K)
             self.temperature
         )
-        # add supervised logits
+        # add supervised logits, anchor_dot_contrast
         anchor_dot_contrast = torch.cat(( sup_logits / self.supt, anchor_dot_contrast ), dim=1) # B X (C + 1 + 2B + K)
-        anchor_dot_contrast[:, :self.num_classes] = self.weight * anchor_dot_contrast[:, :self.num_classes]
+        # anchor_dot_contrast[:, :self.num_classes] = self.weight * anchor_dot_contrast[:, :self.num_classes]
 
+        # logits = anchor_dot_contrast
         # for numerical stability
         logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
         logits = anchor_dot_contrast - logits_max.detach()
@@ -69,16 +70,23 @@ class PaCoLoss(nn.Module):
             torch.arange(batch_size).view(-1, 1).to(device),
             0
         )
+        none_mask = (mask.sum(1) == 0.).float().view(-1, 1)
+        mask[none_mask.bool().view(-1), :] = 1.
         mask = mask * logits_mask
-
+        neg_mask = (~(mask.bool())).float()
+        
         # add ground truth, What?
         gt_labels = labels[:batch_size] # B X C
-        none_mask = (mask.sum(1) == 0.).float().view(-1, 1)
         mask = torch.cat((gt_labels * self.beta, none_mask * self.beta, mask * self.alpha), dim=1) # B X (C + 1 + 2B + K)
 
         # compute log_prob
-        # B X (C + 2B + K)
-        logits_mask = torch.cat((torch.ones(batch_size, self.num_classes + 1).to(device), self.gamma * logits_mask), dim=1)
+        # B X (C + 2B + K) torch.ones(batch_size, self.num_classes + 1).to(device)
+        # class_masks = torch.cat([(~gt_labels.bool()).float(), none_mask], dim=1)
+        logits_mask = torch.cat([
+            (~gt_labels.bool()).float(), 
+            (~none_mask.bool()).float(), 
+            self.gamma * neg_mask
+        ], dim=1)
         exp_logits = torch.exp(logits) * logits_mask
         log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + 1e-12)
        

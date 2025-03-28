@@ -1,6 +1,8 @@
 from models.networks.pointnet import PointNetEncoder
 from models.model.encoder_baseline import MoCoRelEncoderBaseline
 from models.model.encoder_tsc import MoCoRelEncoderTSC
+from models.model.encoder_tsc_aux import MoCoRelEncoderTSCAux
+from models.model.encoder_geo import GeoRelEncoder
 from models.networks.gat import BFeatVanillaGAT
 from models.networks.classifiers import RelationClsMulti, ObjectClsMulti
 from models.utils.baseline import BaseNetwork
@@ -25,7 +27,9 @@ class BFeatDownstreamNet(BaseNetwork):
         self.point_encoder.load_state_dict(torch.load(self.t_config.obj_ckp_path))
         self.point_encoder = self.point_encoder.to(self.device).eval()
         
-        self.rel_encoder = MoCoRelEncoderTSC(self.config, device, n_rel_cls, out_dim=1024)
+        self.rel_encoder = GeoRelEncoder(self.config, device, out_dim=256)
+        # MoCoRelEncoderTSCAux(self.config, device, n_rel_cls, out_dim=512) 
+        # MoCoRelEncoderTSC(self.config, device, n_rel_cls, out_dim=1024)
         self.rel_encoder.load_state_dict(torch.load(self.t_config.rel_ckp_path))
         self.rel_encoder = self.rel_encoder.to(self.device).eval()
         
@@ -55,7 +59,8 @@ class BFeatDownstreamNet(BaseNetwork):
             self.rel_encoder.eval()
             self.point_encoder.eval()
             _obj_feats, _, _ = self.point_encoder(obj_pts)
-            _edge_feats, _ = self.rel_encoder(edge_pts)
+            # _edge_feats, _ = self.rel_encoder(edge_pts)
+            _edge_feats, _, _, _, _ = self.rel_encoder(edge_pts[:, :3, :])
         obj_feats = _obj_feats.clone().detach()
         edge_feats = _edge_feats.clone().detach()
         
