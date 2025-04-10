@@ -6,3 +6,5 @@ from runners.trainer_aux import BFeatRelSCLTMAuxTrainer
 from runners.trainer_tsc_aux import BFeatRelTSCAuxTrainer
 from runners.trainer_geo import BFeatRelGeoTrainer
 from runners.trainer_geo_pp import BFeatRelGeoPPTrainer
+from runners.trainer_geo_view import BFeatRelGeoViewTrainer
+from runners.trainer_geo_pp_view import BFeatRelGeoViewPPTrainer

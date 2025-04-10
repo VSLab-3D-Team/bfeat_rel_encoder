@@ -18,7 +18,12 @@ from tqdm import tqdm
 from utils.visualization import *
 
 class BaseTrainer(ABC):
-    def __init__(self, config, device, multi_gpu=False, is_finetune=False, is_geo_only=False):
+    def __init__(
+        self, config, device, multi_gpu=False, 
+        is_finetune=False, 
+        is_geo_only=False, 
+        is_edge_view=False
+    ):
         super().__init__()
         self.config = config
         self.device = device
@@ -26,8 +31,14 @@ class BaseTrainer(ABC):
         self.d_config = config.dataset
         self.m_config = config.model
         self.opt_config = config.optimizer
-        self.t_dataset = build_dataset(self.d_config, split="train_scans", device=device, ft=is_finetune, is_geo_only=is_geo_only)
-        self.v_dataset = build_dataset(self.d_config, split="validation_scans", device=device, ft=is_finetune, is_geo_only=is_geo_only)
+        self.t_dataset = build_dataset(
+            self.d_config, split="train_scans", device=device, 
+            ft=is_finetune, is_geo_only=is_geo_only, is_edge_view=is_edge_view
+        )
+        self.v_dataset = build_dataset(
+            self.d_config, split="validation_scans", device=device, 
+            ft=is_finetune, is_geo_only=is_geo_only, is_edge_view=is_edge_view
+        )
         t_sampler = DistributedSampler(self.t_dataset) if multi_gpu else None
         is_shuffle = False if multi_gpu else True
         collate_fn = collate_fn_bfeat if is_finetune else None

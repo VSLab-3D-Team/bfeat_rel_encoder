@@ -10,7 +10,11 @@ parser = argparse.ArgumentParser(description="Training BFeat Architecture")
 parser.add_argument("--mode", type=str, default="train", choices=["train", "experiment"], help="Select mode for BFeat (train/evaluation)")
 parser.add_argument("--runners", 
     type=str, default="pretrain", 
-    choices=["pretrain", "pretrain_aux", "pretrain_tsc", "pretrain_tsc_aux", "pretrain_geo", "pretrain_geo_pp", "finetune"],
+    choices=[
+        "pretrain", "pretrain_aux", "pretrain_tsc", 
+        "pretrain_tsc_aux", "pretrain_geo", "pretrain_geo_pp", 
+        "pretrain_geo_view", "pretrain_geo_pp_view", "finetune"
+    ],
     help="Select running model"
 )
 parser.add_argument("--config", type=str, default="baseline.yaml", help="Runtime configuration file path")
@@ -33,6 +37,10 @@ def train(config):
         trainer = BFeatRelGeoTrainer(config, device, multi_gpu=args.multigpu)
     elif args.runners == "pretrain_geo_pp":
         trainer = BFeatRelGeoPPTrainer(config, device, multi_gpu=args.multigpu)
+    elif args.runners == "pretrain_geo_view":
+        trainer = BFeatRelGeoViewTrainer(config, device, multi_gpu=args.multigpu)
+    elif args.runners == "pretrain_geo_pp_view":
+        trainer = BFeatRelGeoViewPPTrainer(config, device, multi_gpu=args.multigpu)
     elif args.runners == "finetune":
         trainer = BFeatFinetuningTrainer(config, device, multi_gpu=args.multigpu)
     else:

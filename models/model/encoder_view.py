@@ -7,9 +7,9 @@ from models.networks.pointnet2 import PointNetPP
 
 ## Head 쪽의 Predicate이 feature space 상에서 너무 고르게 퍼져있음.
 ## 이렇기에 left/right/front/behind 들이 너무 고르게 퍼져 있어서 body predicate의 추론이 구분이 안됨.
-class GeoRelEncoder(BaseNetwork):
+class GeoViewRelEncoder(BaseNetwork):
     def __init__(self, config, device, out_dim=256):
-        super(GeoRelEncoder, self).__init__()
+        super(GeoViewRelEncoder, self).__init__()
         self.config = config
         self.t_config = config.train
         self.m_config = config.model
